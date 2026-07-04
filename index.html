@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
+<title>Sanmesh Desai — Backend &amp; AI Engineer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --void:#060814;
+    --void-2:#0c1024;
+    --void-3:#12172e;
+    --accent-cyan:#4CE0D2;
+    --accent-violet:#9A8BFF;
+    --accent-rose:#FF7C93;
+    --sun-gold:#FFC978;
+    --text-primary:#EAF0FF;
+    --text-dim:#7C86A8;
+    --line:rgba(234,240,255,0.09);
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%; overflow:hidden;
+    background:var(--void);
+    color:var(--text-primary);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{position:fixed; inset:0;}
+  canvas{display:block; width:100%; height:100%;}
+  #flareCanvas{position:fixed; inset:0; z-index:6; pointer-events:none;}
+
+  /* core stat grid */
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:36px;}
+  .stat-box{border:1px solid var(--line); border-radius:4px; padding:16px; background:rgba(255,201,120,0.03);}
+  .stat-num{font-size:22px; font-weight:600; color:var(--sun-gold); font-family:'Space Grotesk',sans-serif;}
+  .stat-label{font-size:10.5px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.06em; margin-top:4px;}
+
+  .mono{font-family:'IBM Plex Mono',monospace; letter-spacing:0.06em;}
+  .display{font-family:'Space Grotesk',sans-serif;}
+
+  /* ---------- Loading ---------- */
+  #loader{
+    position:fixed; inset:0; z-index:100; background:var(--void);
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    transition:opacity 0.8s ease, visibility 0.8s ease;
+  }
+  #loader.hidden{opacity:0; visibility:hidden; pointer-events:none;}
+  .loader-title{font-size:13px; color:var(--text-dim); text-transform:uppercase; margin-bottom:22px;}
+  .loader-bar-track{width:220px; height:2px; background:var(--line); position:relative; overflow:hidden;}
+  .loader-bar-fill{position:absolute; left:0; top:0; height:100%; width:0%; background:var(--accent-cyan); box-shadow:0 0 12px var(--accent-cyan);}
+  .loader-pct{margin-top:14px; font-size:12px; color:var(--text-dim);}
+
+  /* ---------- HUD ---------- */
+  .hud{position:fixed; inset:0; pointer-events:none; z-index:10;}
+  .hud-corner{position:absolute; font-size:11px; color:var(--text-dim); line-height:1.6;}
+  .hud-top-left{top:26px; left:28px;}
+  .hud-top-left .name{font-size:15px; color:var(--text-primary); font-weight:600; letter-spacing:0.02em;}
+  .hud-top-left .role{font-size:11px; color:var(--accent-cyan); margin-top:2px;}
+  .hud-top-right{top:26px; right:28px; text-align:right;}
+
+  .status-dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent-cyan); margin-right:6px; box-shadow:0 0 6px var(--accent-cyan); animation:pulse 2s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:0.35;}}
+
+  /* orbital nav strip */
+  .nav-strip{
+    position:fixed; bottom:30px; left:50%; transform:translateX(-50%);
+    display:flex; gap:2px; z-index:20; pointer-events:auto;
+    background:rgba(12,16,36,0.55);
+    border:1px solid var(--line);
+    backdrop-filter:blur(10px);
+    border-radius:3px;
+    overflow:hidden;
+  }
+  .nav-item{
+    padding:12px 20px; font-size:11px; color:var(--text-dim); cursor:pointer;
+    border-right:1px solid var(--line);
+    display:flex; align-items:center; gap:8px;
+    transition:background 0.25s ease, color 0.25s ease;
+    white-space:nowrap;
+  }
+  .nav-item:last-child{border-right:none;}
+  .nav-item:hover{background:rgba(234,240,255,0.05); color:var(--text-primary);}
+  .nav-item.active{color:var(--text-primary); background:rgba(234,240,255,0.06);}
+  .nav-dot{width:6px; height:6px; border-radius:50%; background:var(--text-dim); flex-shrink:0;}
+  .nav-item[data-target="core"] .nav-dot{background:var(--sun-gold);}
+  .nav-item[data-target="projects"] .nav-dot{background:var(--accent-cyan);}
+  .nav-item[data-target="about"] .nav-dot{background:var(--accent-violet);}
+  .nav-item[data-target="contact"] .nav-dot{background:var(--accent-rose);}
+  .nav-item.active[data-target="core"] .nav-dot{box-shadow:0 0 8px var(--sun-gold);}
+  .nav-item.active[data-target="projects"] .nav-dot{box-shadow:0 0 8px var(--accent-cyan);}
+  .nav-item.active[data-target="about"] .nav-dot{box-shadow:0 0 8px var(--accent-violet);}
+  .nav-item.active[data-target="contact"] .nav-dot{box-shadow:0 0 8px var(--accent-rose);}
+
+  .hint{
+    position:fixed; bottom:88px; left:50%; transform:translateX(-50%);
+    font-size:10.5px; color:var(--text-dim); z-index:15; text-align:center;
+    opacity:1; transition:opacity 0.6s ease;
+  }
+  .hint.hidden{opacity:0;}
+
+  /* ---------- Docking Panels ---------- */
+  .panel{
+    position:fixed; inset:0; z-index:30;
+    display:flex; justify-content:flex-end;
+    pointer-events:none;
+    background:rgba(3,4,10,0); cursor:default;
+    transition:background 0.5s ease;
+  }
+  .panel.open{background:rgba(3,4,10,0.4);}
+  .panel-surface{
+    width:min(560px, 92vw); height:100%;
+    background:linear-gradient(180deg, rgba(12,16,36,0.97), rgba(6,8,20,0.99));
+    border-left:1px solid var(--line);
+    padding:100px 44px 40px;
+    overflow-y:auto;
+    transform:translateX(100%);
+    transition:transform 0.7s cubic-bezier(0.16,1,0.3,1);
+    pointer-events:auto;
+  }
+  .panel.open{pointer-events:auto;}
+  .panel.open .panel-surface{transform:translateX(0);}
+
+  .panel-eyebrow{font-size:11px; letter-spacing:0.12em; text-transform:uppercase; margin-bottom:10px; display:flex; align-items:center; gap:8px;}
+  .panel-eyebrow .dash{width:16px; height:1px; background:currentColor;}
+  .panel-title{font-size:34px; margin:0 0 10px; font-weight:600;}
+  .panel-sub{color:var(--text-dim); font-size:14px; line-height:1.6; margin-bottom:38px; max-width:44ch;}
+
+  .hud-top-left{transition:opacity 0.4s ease;}
+  .hud-top-left.faded{opacity:0;}
+
+  .return-btn{
+    position:fixed; top:22px; left:28px; z-index:35;
+    display:none; align-items:center; gap:8px;
+    font-size:11.5px; color:var(--text-primary); cursor:pointer;
+    background:rgba(12,16,36,0.7); border:1px solid var(--line);
+    letter-spacing:0.06em; padding:10px 18px; border-radius:24px; pointer-events:auto;
+    backdrop-filter:blur(10px);
+    transition:color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  }
+  .return-btn:hover{color:var(--sun-gold); border-color:rgba(255,201,120,0.4); background:rgba(12,16,36,0.9);}
+  .return-btn.show{display:flex;}
+  .return-btn .arrow{transition:transform 0.2s ease;}
+  .return-btn:hover .arrow{transform:translateX(-3px);}
+
+  /* project cards */
+  .card{
+    border:1px solid var(--line); border-radius:4px; padding:20px 22px; margin-bottom:14px;
+    background:rgba(234,240,255,0.02);
+    transition:border-color 0.25s ease, background 0.25s ease;
+  }
+  .card:hover{border-color:rgba(76,224,210,0.4); background:rgba(76,224,210,0.04);}
+  .card-title{font-size:16px; font-weight:600; margin:0 0 6px;}
+  .card-desc{font-size:13px; color:var(--text-dim); line-height:1.6; margin:0 0 14px;}
+  .tag-row{display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px;}
+  .tag{font-size:10.5px; color:var(--accent-cyan); border:1px solid rgba(76,224,210,0.3); padding:3px 8px; border-radius:2px; font-family:'IBM Plex Mono',monospace;}
+  .card-links{display:flex; gap:16px;}
+  .card-links a{font-size:11.5px; color:var(--text-primary); text-decoration:none; border-bottom:1px solid var(--text-dim); padding-bottom:1px;}
+  .card-links a:hover{border-color:var(--accent-cyan); color:var(--accent-cyan);}
+
+  /* about */
+  .skill-block{margin-bottom:26px;}
+  .skill-label{font-size:11px; color:var(--accent-violet); text-transform:uppercase; letter-spacing:0.1em; margin-bottom:10px;}
+  .skill-pills{display:flex; flex-wrap:wrap; gap:8px;}
+  .pill{font-size:12px; padding:6px 12px; border:1px solid var(--line); border-radius:20px; color:var(--text-primary);}
+  .bio-text{font-size:14px; line-height:1.75; color:#C7CEEA; margin-bottom:34px;}
+
+  /* contact */
+  .contact-row{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 0; border-bottom:1px solid var(--line);
+  }
+  .contact-label{font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.08em;}
+  .contact-value{font-size:14px; color:var(--text-primary); text-decoration:none;}
+  .contact-value:hover{color:var(--accent-rose);}
+  .resume-btn{
+    margin-top:30px; display:inline-flex; align-items:center; gap:10px;
+    padding:14px 22px; background:var(--accent-rose); color:#1a0a10; text-decoration:none;
+    font-size:13px; font-weight:600; border-radius:3px; letter-spacing:0.02em;
+    transition:opacity 0.2s ease;
+  }
+  .resume-btn:hover{opacity:0.85;}
+
+  ::-webkit-scrollbar{width:5px;}
+  ::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px;}
+
+  @media (max-width:640px){
+    .hud-top-right{display:none;}
+    .nav-strip{transform:translateX(-50%) scale(0.9);}
+    .panel-surface{padding:88px 24px 40px;}
+    .panel-title{font-size:26px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="app"></div>
+<canvas id="flareCanvas"></canvas>
+
+<div id="loader">
+  <div class="loader-title mono">Launch Sequence Initiated</div>
+  <div class="loader-bar-track"><div class="loader-bar-fill" id="loaderFill"></div></div>
+  <div class="loader-pct mono" id="loaderPct">00%</div>
+</div>
+
+<div class="hud">
+  <div class="hud-corner hud-top-left">
+    <div class="name">SANMESH DESAI</div>
+    <div class="role mono">BACKEND &amp; AI ENGINEER</div>
+  </div>
+  <div class="hud-corner hud-top-right mono">
+    <div><span class="status-dot"></span>SYSTEMS NOMINAL</div>
+    <div id="clock">00:00:00 UTC</div>
+  </div>
+</div>
+
+<div class="hint mono" id="hint">DRAG TO ORBIT · SCROLL TO ZOOM · SELECT A BODY TO DOCK</div>
+
+<button class="return-btn mono" id="returnBtn">
+  <span class="arrow">◂</span> RETURN TO ORBIT
+</button>
+
+<div class="nav-strip mono">
+  <div class="nav-item active" data-target="orbit"><span class="nav-dot" style="background:var(--text-dim)"></span>ORBIT</div>
+  <div class="nav-item" data-target="core"><span class="nav-dot"></span>CORE</div>
+  <div class="nav-item" data-target="projects"><span class="nav-dot"></span>PROJECTS</div>
+  <div class="nav-item" data-target="about"><span class="nav-dot"></span>ABOUT</div>
+  <div class="nav-item" data-target="contact"><span class="nav-dot"></span>CONTACT</div>
+</div>
+
+<!-- CORE PANEL (sun) -->
+<div class="panel" id="panel-core">
+  <div class="panel-surface">
+    <div class="panel-eyebrow mono" style="color:var(--sun-gold)"><span class="dash"></span>DOCKED · SOL-1 · CORE SYSTEM</div>
+    <h2 class="panel-title display">Sanmesh Desai</h2>
+    <p class="panel-sub">Backend &amp; AI Engineer — turning agentic AI concepts into production-grade systems. Everything else in this system orbits around this.</p>
+
+    <div class="stat-grid">
+      <div class="stat-box"><div class="stat-num">8.72</div><div class="stat-label">CGPA · DJSCE</div></div>
+      <div class="stat-box"><div class="stat-num">2</div><div class="stat-label">Internships Completed</div></div>
+      <div class="stat-box"><div class="stat-num">200+</div><div class="stat-label">DSA Problems Solved</div></div>
+      <div class="stat-box"><div class="stat-num">55</div><div class="stat-label">Members Led · DJS Synapse</div></div>
+    </div>
+
+    <div class="skill-block">
+      <div class="skill-label" style="color:var(--sun-gold)">Currently</div>
+      <p class="bio-text" style="margin-bottom:0;">Python &amp; Cloud Dev Intern at GoChanakya, building event-driven data pipelines on GCP — alongside shipping RAG and LangGraph agent projects on the side.</p>
+    </div>
+  </div>
+</div>
+
+<!-- PROJECTS PANEL -->
+<div class="panel" id="panel-projects">
+  <div class="panel-surface">
+    <div class="panel-eyebrow mono" style="color:var(--accent-cyan)"><span class="dash"></span>DOCKED · PROJECTS</div>
+    <h2 class="panel-title display">Mission Log</h2>
+    <p class="panel-sub">Selected builds — real, deployable systems rather than toy demos. Replace with your latest work anytime.</p>
+
+    <div class="card">
+      <h3 class="card-title">AgenticAI Group Travel Planner</h3>
+      <p class="card-desc">A full-stack AI travel app generating personalized, day-by-day group itineraries with live map integrations and booking links. 3 specialized LangGraph agents coordinate trip planning and real-time web search; conflicting budgets and schedules are resolved with voting algorithms plus LLM reasoning across 7 distinct group preferences.</p>
+      <div class="tag-row"><span class="tag">LangGraph</span><span class="tag">FastAPI</span><span class="tag">React</span><span class="tag">Groq</span><span class="tag">Tavily</span><span class="tag">Docker</span><span class="tag">AWS EC2</span></div>
+      <div class="card-links"><a href="https://github.com/sanmeshh" target="_blank">GitHub ↗</a></div>
+    </div>
+
+    <div class="card">
+      <h3 class="card-title">MediBot: Medical AI Chatbot</h3>
+      <p class="card-desc">A conversational RAG QA system extracting precise clinical context from unstructured medical documents. Retrieval pipeline built with LangChain, Hugging Face embeddings, and Pinecone vector storage on a Flask backend, with Groq inference for low-latency, accurate responses.</p>
+      <div class="tag-row"><span class="tag">Flask</span><span class="tag">LangChain</span><span class="tag">Hugging Face</span><span class="tag">Pinecone</span><span class="tag">Groq</span></div>
+      <div class="card-links"><a href="https://github.com/sanmeshh" target="_blank">GitHub ↗</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- ABOUT PANEL -->
+<div class="panel" id="panel-about">
+  <div class="panel-surface">
+    <div class="panel-eyebrow mono" style="color:var(--accent-violet)"><span class="dash"></span>DOCKED · ABOUT</div>
+    <h2 class="panel-title display">Flight Profile</h2>
+    <p class="bio-text">B.Tech Computer Engineering student at D.J. Sanghvi College of Engineering (CGPA 8.72), building toward a career as a Backend &amp; AI Engineer. Hands-on with RAG pipelines, agentic systems, and cloud-deployed backends — focused on shipping things that hold up outside a notebook.</p>
+
+    <div class="skill-block">
+      <div class="skill-label">Experience</div>
+      <div class="card" style="margin-bottom:10px;">
+        <h3 class="card-title" style="font-size:14px;">Python &amp; Cloud Dev Intern — GoChanakya</h3>
+        <p class="card-desc" style="margin-bottom:0;">Feb 2026 – Present. Automated daily mutual fund data collection from public financial registries; migrated pipelines from PythonAnywhere to GCP (Cloud Run, Cloud Scheduler, Storage Buckets) with event-driven merge/validation.</p>
+      </div>
+      <div class="card" style="margin-bottom:0;">
+        <h3 class="card-title" style="font-size:14px;">ML Research Intern — VJTI</h3>
+        <p class="card-desc" style="margin-bottom:0;">June – July 2025. Built LSTM/GRU/1D-CNN sequence models forecasting indoor PM2.5 and CO2; cut model footprint 61.5% (85KB → 32KB) via TensorFlow Lite Micro for edge deployment, with MAE under 10 µg/m³.</p>
+      </div>
+    </div>
+
+    <div class="skill-block">
+      <div class="skill-label">Languages</div>
+      <div class="skill-pills">
+        <span class="pill">Python</span><span class="pill">SQL</span>
+      </div>
+    </div>
+    <div class="skill-block">
+      <div class="skill-label">Frameworks &amp; AI Tools</div>
+      <div class="skill-pills">
+        <span class="pill">PyTorch</span><span class="pill">TensorFlow</span><span class="pill">LangChain</span><span class="pill">LangGraph</span><span class="pill">Langflow</span><span class="pill">Hugging Face</span><span class="pill">Django</span><span class="pill">Pydantic</span>
+      </div>
+    </div>
+    <div class="skill-block">
+      <div class="skill-label">Concepts &amp; Databases</div>
+      <div class="skill-pills">
+        <span class="pill">RAG Pipelines</span><span class="pill">Prompt Engineering</span><span class="pill">Pinecone</span><span class="pill">Astra DB</span>
+      </div>
+    </div>
+    <div class="skill-block">
+      <div class="skill-label">Deployment &amp; Tools</div>
+      <div class="skill-pills">
+        <span class="pill">Docker</span><span class="pill">FastAPI</span><span class="pill">Flask</span><span class="pill">Git / GitHub</span><span class="pill">AWS EC2</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACT PANEL -->
+<div class="panel" id="panel-contact">
+  <div class="panel-surface">
+    <div class="panel-eyebrow mono" style="color:var(--accent-rose)"><span class="dash"></span>DOCKED · CONTACT</div>
+    <h2 class="panel-title display">Open Channel</h2>
+    <p class="panel-sub">Available for 6-month full-time internships. Reach out through any of these.</p>
+
+    <div class="contact-row">
+      <span class="contact-label mono">Email</span>
+      <a class="contact-value" href="mailto:sanmeshdesai725@gmail.com">sanmeshdesai725@gmail.com</a>
+    </div>
+    <div class="contact-row">
+      <span class="contact-label mono">Phone</span>
+      <a class="contact-value" href="tel:+918169692283">+91 8169692283</a>
+    </div>
+    <div class="contact-row">
+      <span class="contact-label mono">GitHub</span>
+      <a class="contact-value" href="https://github.com/sanmeshh" target="_blank">github.com/sanmeshh</a>
+    </div>
+    <div class="contact-row">
+      <span class="contact-label mono">LinkedIn</span>
+      <a class="contact-value" href="https://linkedin.com/in/sanmeshdesai25" target="_blank">linkedin.com/in/sanmeshdesai25</a>
+    </div>
+    <div class="contact-row">
+      <span class="contact-label mono">LeetCode</span>
+      <a class="contact-value" href="https://leetcode.com/u/sanm3sh" target="_blank">leetcode.com/u/sanm3sh</a>
+    </div>
+
+    <a href="Sanmesh_Desai_Resume.pdf" class="resume-btn" download>↓ Download Resume</a>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+
+  /* ---------------- Loading sequence ---------------- */
+  const loader = document.getElementById('loader');
+  const fill = document.getElementById('loaderFill');
+  const pct = document.getElementById('loaderPct');
+  let prog = 0;
+  const loadTimer = setInterval(()=>{
+    prog += Math.random()*18;
+    if(prog >= 100){ prog = 100; clearInterval(loadTimer); }
+    fill.style.width = prog + '%';
+    pct.textContent = String(Math.floor(prog)).padStart(2,'0') + '%';
+    if(prog === 100){
+      setTimeout(()=> loader.classList.add('hidden'), 350);
+    }
+  }, 120);
+
+  /* ---------------- Clock ---------------- */
+  const clockEl = document.getElementById('clock');
+  function tickClock(){
+    const d = new Date();
+    clockEl.textContent = d.toUTCString().slice(17,25) + ' UTC';
+  }
+  tickClock(); setInterval(tickClock, 1000);
+
+  /* ---------------- Three.js setup ---------------- */
+  const container = document.getElementById('app');
+  const scene = new THREE.Scene();
+  scene.fog = new THREE.FogExp2(0x060814, 0.0022);
+
+  const camera = new THREE.PerspectiveCamera(52, window.innerWidth/window.innerHeight, 0.1, 3000);
+  const defaultCamPos = new THREE.Vector3(0, 130, 340);
+  camera.position.copy(defaultCamPos);
+
+  const renderer = new THREE.WebGLRenderer({antialias:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x060814, 1);
+  container.appendChild(renderer.domElement);
+
+  /* ---------------- Procedural textures ---------------- */
+  function makeRadialGlowTexture(innerColor, outerColor){
+    const size = 256;
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(size/2,size/2,0, size/2,size/2,size/2);
+    g.addColorStop(0, innerColor);
+    g.addColorStop(0.4, outerColor);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,size,size);
+    return new THREE.CanvasTexture(c);
+  }
+
+  function makePlanetTexture(baseHue, satL, satH, lightL, lightH, bands){
+    const w = 256, h = 128;
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const ctx = c.getContext('2d');
+    for(let y=0; y<h; y++){
+      const t = y/h;
+      const noise = Math.sin(t*bands*Math.PI*2) * 4;
+      const sat = satL + (satH-satL)*t;
+      const light = lightL + (lightH-lightL)*t + noise;
+      ctx.fillStyle = `hsl(${baseHue}, ${sat}%, ${Math.max(8,Math.min(85,light))}%)`;
+      ctx.fillRect(0,y,w,1);
+    }
+    // subtle speckle for texture
+    for(let i=0;i<900;i++){
+      const x = Math.random()*w, y = Math.random()*h;
+      const a = Math.random()*0.08;
+      ctx.fillStyle = `rgba(255,255,255,${a})`;
+      ctx.fillRect(x,y,1.4,1.4);
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = THREE.RepeatWrapping;
+    return tex;
+  }
+
+  /* ---------------- Starfield ---------------- */
+  function buildStars(count, radius, size, color){
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(count*3);
+    for(let i=0;i<count;i++){
+      const r = radius * (0.6 + Math.random()*0.4);
+      const theta = Math.random()*Math.PI*2;
+      const phi = Math.acos((Math.random()*2)-1);
+      positions[i*3]   = r * Math.sin(phi) * Math.cos(theta);
+      positions[i*3+1] = r * Math.cos(phi);
+      positions[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+    const mat = new THREE.PointsMaterial({color, size, transparent:true, opacity:0.85, sizeAttenuation:true});
+    return new THREE.Points(geo, mat);
+  }
+  const starsFar = buildStars(3500, 1400, 1.6, 0xffffff);
+  const starsNear = buildStars(1200, 800, 2.2, 0xaecbff);
+  scene.add(starsFar, starsNear);
+
+  /* ---------------- Sun ---------------- */
+  const sunGroup = new THREE.Group();
+  const sunGeo = new THREE.SphereGeometry(26, 48, 48);
+  const sunMat = new THREE.MeshBasicMaterial({color:0xffcf8a});
+  const sun = new THREE.Mesh(sunGeo, sunMat);
+  sunGroup.add(sun);
+
+  const glowTex = makeRadialGlowTexture('rgba(255,220,160,0.9)', 'rgba(255,160,90,0.25)');
+  const glowMat = new THREE.SpriteMaterial({map:glowTex, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false});
+  const glowSprite = new THREE.Sprite(glowMat);
+  glowSprite.scale.set(160,160,1);
+  sunGroup.add(glowSprite);
+
+  scene.add(sunGroup);
+
+  const sunLight = new THREE.PointLight(0xffe3b0, 2.4, 2000, 1.6);
+  scene.add(sunLight);
+  scene.add(new THREE.AmbientLight(0x25304a, 0.9));
+
+  /* ---------------- Orbit rings ---------------- */
+  function buildOrbitRing(radius, color){
+    const points = [];
+    for(let i=0;i<=128;i++){
+      const a = (i/128)*Math.PI*2;
+      points.push(new THREE.Vector3(Math.cos(a)*radius, 0, Math.sin(a)*radius));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(points);
+    const mat = new THREE.LineBasicMaterial({color, transparent:true, opacity:0.18});
+    return new THREE.LineLoop(geo, mat);
+  }
+
+  /* ---------------- Planet factory ---------------- */
+  const planets = [];
+  function makePlanet(cfg){
+    const group = new THREE.Group();
+    const tex = makePlanetTexture(cfg.hue, cfg.satL, cfg.satH, cfg.lightL, cfg.lightH, cfg.bands);
+    const geo = new THREE.SphereGeometry(cfg.size, 40, 40);
+    const mat = new THREE.MeshStandardMaterial({map:tex, roughness:0.85, metalness:0.05});
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.z = cfg.tilt || 0;
+    group.add(mesh);
+
+    // atmosphere halo
+    const haloTex = makeRadialGlowTexture(cfg.haloInner, cfg.haloOuter);
+    const haloMat = new THREE.SpriteMaterial({map:haloTex, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0.7});
+    const halo = new THREE.Sprite(haloMat);
+    halo.scale.set(cfg.size*4.4, cfg.size*4.4, 1);
+    group.add(halo);
+
+    if(cfg.ring){
+      const ringGeo = new THREE.RingGeometry(cfg.size*1.4, cfg.size*2.5, 64);
+      const ringMat = new THREE.MeshBasicMaterial({color:cfg.ringColor, transparent:true, opacity:0.55, side:THREE.DoubleSide});
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.rotation.x = Math.PI/2 + 0.35;
+      group.add(ring);
+    }
+
+    const orbit = buildOrbitRing(cfg.orbitRadius, cfg.orbitColor);
+    scene.add(orbit);
+    scene.add(group);
+
+    const data = {
+      group, mesh, angle: cfg.startAngle, speed: cfg.speed, radius: cfg.orbitRadius,
+      spinSpeed: cfg.spinSpeed, id: cfg.id, label: cfg.label, size: cfg.size
+    };
+    planets.push(data);
+    return data;
+  }
+
+  const projectsPlanet = makePlanet({
+    id:'projects', label:'PROJECTS', size:9, hue:14, satL:60, satH:75, lightL:35, lightH:58, bands:6,
+    haloInner:'rgba(255,111,80,0.55)', haloOuter:'rgba(255,111,80,0.08)',
+    orbitRadius:110, orbitColor:0xE8604C, speed:0.09, spinSpeed:0.006, startAngle:0.4, tilt:0.2
+  });
+  const aboutPlanet = makePlanet({
+    id:'about', label:'ABOUT', size:12, hue:42, satL:28, satH:38, lightL:62, lightH:78, bands:5,
+    haloInner:'rgba(240,222,175,0.5)', haloOuter:'rgba(240,222,175,0.08)',
+    orbitRadius:170, orbitColor:0x9A8BFF, speed:0.055, spinSpeed:0.004, startAngle:2.4, ring:true, ringColor:0xC9B98E, tilt:0.35
+  });
+  const contactPlanet = makePlanet({
+    id:'contact', label:'CONTACT', size:7.5, hue:135, satL:45, satH:60, lightL:28, lightH:52, bands:5,
+    haloInner:'rgba(110,220,140,0.5)', haloOuter:'rgba(110,220,140,0.08)',
+    orbitRadius:230, orbitColor:0x6EDC8C, speed:0.035, spinSpeed:0.007, startAngle:4.6, tilt:0.15
+  });
+
+  /* decorative moon on the about planet */
+  const moonGeo = new THREE.SphereGeometry(2.2, 16, 16);
+  const moonMat = new THREE.MeshStandardMaterial({color:0xcfd4ff, roughness:0.9});
+  const moon = new THREE.Mesh(moonGeo, moonMat);
+  scene.add(moon);
+
+  /* ---------------- Asteroid belt (decorative) ---------------- */
+  const beltCount = 260;
+  const beltGeo = new THREE.IcosahedronGeometry(1, 0);
+  const beltMat = new THREE.MeshStandardMaterial({color:0x555f80, roughness:1});
+  const beltMesh = new THREE.InstancedMesh(beltGeo, beltMat, beltCount);
+  const dummy = new THREE.Object3D();
+  const beltRadiusBase = 198;
+  const beltData = [];
+  for(let i=0;i<beltCount;i++){
+    const r = beltRadiusBase + (Math.random()-0.5)*14;
+    const a = Math.random()*Math.PI*2;
+    const y = (Math.random()-0.5)*4;
+    const s = 0.5 + Math.random()*1.3;
+    beltData.push({r, a, y, s, speed:0.008 + Math.random()*0.01});
+    dummy.position.set(Math.cos(a)*r, y, Math.sin(a)*r);
+    dummy.scale.setScalar(s);
+    dummy.updateMatrix();
+    beltMesh.setMatrixAt(i, dummy.matrix);
+  }
+  scene.add(beltMesh);
+
+  /* ---------------- Lens flare overlay (screen-space, 2D canvas) ---------------- */
+  const flareCanvas = document.getElementById('flareCanvas');
+  const flareCtx = flareCanvas.getContext('2d');
+  function resizeFlareCanvas(){
+    flareCanvas.width = window.innerWidth * Math.min(window.devicePixelRatio, 2);
+    flareCanvas.height = window.innerHeight * Math.min(window.devicePixelRatio, 2);
+    flareCanvas.style.width = window.innerWidth + 'px';
+    flareCanvas.style.height = window.innerHeight + 'px';
+  }
+  resizeFlareCanvas();
+
+  const flareElements = [
+    { t:1.0,  size:70, color:'255,220,170', alpha:0.55 }, // main glow at the sun itself
+    { t:0.55, size:16, color:'255,255,255', alpha:0.35 },
+    { t:0.3,  size:30, color:'255,200,140', alpha:0.22 },
+    { t:-0.15,size:10, color:'170,220,255', alpha:0.28 },
+    { t:-0.45,size:22, color:'255,180,200', alpha:0.18 },
+    { t:-0.8, size:44, color:'160,200,255', alpha:0.14 }
+  ];
+
+  function drawLensFlare(){
+    const w = flareCanvas.width, h = flareCanvas.height;
+    flareCtx.clearRect(0,0,w,h);
+    if(w === 0 || h === 0) return;
+
+    const sunWorldPos = new THREE.Vector3(0,0,0);
+    const ndc = sunWorldPos.clone().project(camera);
+    if(!isFinite(ndc.x) || !isFinite(ndc.y) || !isFinite(ndc.z) || ndc.z > 1 || ndc.z < -1) return;
+
+    const sx = (ndc.x*0.5 + 0.5) * w;
+    const sy = (1 - (ndc.y*0.5 + 0.5)) * h;
+    if(!isFinite(sx) || !isFinite(sy)) return;
+    const cx = w/2, cy = h/2;
+
+    const distFromCenter = Math.hypot(sx-cx, sy-cy) / (Math.min(w,h)*0.6);
+    const centerFactor = Math.max(0, 1 - Math.min(1, distFromCenter));
+
+    // proximity boost: stronger the closer the camera is to the sun (e.g. during core dock flythrough)
+    const camDist = camera.position.length();
+    const proximityFactor = Math.max(0, Math.min(1, 1 - (camDist-40)/260));
+
+    const intensity = Math.max(centerFactor*0.6, proximityFactor);
+    if(!isFinite(intensity) || intensity <= 0.02) return;
+
+    flareCtx.globalCompositeOperation = 'lighter';
+    flareElements.forEach(fe=>{
+      const px = cx + (sx-cx)*fe.t;
+      const py = cy + (sy-cy)*fe.t;
+      const r = Math.max(0.5, fe.size * (window.devicePixelRatio > 1 ? Math.min(window.devicePixelRatio,2) : 1) * (0.6 + intensity*0.8));
+      if(!isFinite(px) || !isFinite(py) || !isFinite(r)) return;
+      const alpha = fe.alpha * intensity;
+      const g = flareCtx.createRadialGradient(px,py,0, px,py,r);
+      g.addColorStop(0, `rgba(${fe.color},${alpha})`);
+      g.addColorStop(1, `rgba(${fe.color},0)`);
+      flareCtx.fillStyle = g;
+      flareCtx.beginPath();
+      flareCtx.arc(px,py,r,0,Math.PI*2);
+      flareCtx.fill();
+    });
+    flareCtx.globalCompositeOperation = 'source-over';
+  }
+
+  /* ---------------- Camera control (custom, no OrbitControls dep) ---------------- */
+  const isCoarse = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
+  let camAzimuth = 0.0;
+  let camPolar = 1.15;
+  let camDistance = 360;
+  let targetAzimuth = camAzimuth, targetPolar = camPolar, targetDistance = camDistance;
+  let dragging = false;
+  let lastX = 0, lastY = 0;
+  let autoRotate = isCoarse;
+  let controlsEnabled = true;
+
+  function updateCameraFromSpherical(){
+    camAzimuth += (targetAzimuth - camAzimuth) * 0.08;
+    camPolar += (targetPolar - camPolar) * 0.08;
+    camDistance += (targetDistance - camDistance) * 0.08;
+    const p = Math.max(0.4, Math.min(2.6, camPolar));
+    camera.position.x = camDistance * Math.sin(p) * Math.sin(camAzimuth);
+    camera.position.y = camDistance * Math.cos(p);
+    camera.position.z = camDistance * Math.sin(p) * Math.cos(camAzimuth);
+    camera.lookAt(0,0,0);
+  }
+
+  const dom = renderer.domElement;
+  dom.style.touchAction = 'none';
+  dom.addEventListener('pointerdown', e=>{
+    if(!controlsEnabled || dockedId) return;
+    dragging = true; lastX = e.clientX; lastY = e.clientY;
+    document.getElementById('hint').classList.add('hidden');
+  });
+  window.addEventListener('pointerup', ()=> dragging = false);
+  window.addEventListener('pointermove', e=>{
+    if(!dragging || !controlsEnabled || dockedId) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    targetAzimuth -= dx * 0.004;
+    targetPolar -= dy * 0.003;
+  });
+  dom.addEventListener('wheel', e=>{
+    if(!controlsEnabled || dockedId) return;
+    e.preventDefault();
+    targetDistance += e.deltaY * 0.25;
+    targetDistance = Math.max(120, Math.min(600, targetDistance));
+  }, {passive:false});
+
+  // mouse parallax on starfield
+  let mouseX = 0, mouseY = 0;
+  window.addEventListener('mousemove', e=>{
+    mouseX = (e.clientX/window.innerWidth - 0.5);
+    mouseY = (e.clientY/window.innerHeight - 0.5);
+  });
+
+  /* ---------------- Raycasting / selection ---------------- */
+  const raycaster = new THREE.Raycaster();
+  const pointerV = new THREE.Vector2();
+  let dockedId = null;
+  let transitioning = false;
+
+  function getPointer(e){
+    const rect = dom.getBoundingClientRect();
+    pointerV.x = ((e.clientX-rect.left)/rect.width)*2 - 1;
+    pointerV.y = -((e.clientY-rect.top)/rect.height)*2 + 1;
+  }
+
+  dom.addEventListener('click', e=>{
+    if(dockedId || transitioning) return;
+    getPointer(e);
+    raycaster.setFromCamera(pointerV, camera);
+    const meshes = [...planets.map(p=>p.mesh), sun];
+    const hits = raycaster.intersectObjects(meshes);
+    if(hits.length){
+      if(hits[0].object === sun){ dockTo('core'); return; }
+      const hit = planets.find(p=>p.mesh === hits[0].object);
+      if(hit) dockTo(hit.id);
+    }
+  });
+
+  /* ---------------- Docking sequence ---------------- */
+  const panels = {
+    core: document.getElementById('panel-core'),
+    projects: document.getElementById('panel-projects'),
+    about: document.getElementById('panel-about'),
+    contact: document.getElementById('panel-contact')
+  };
+  const navItems = document.querySelectorAll('.nav-item');
+  const returnBtn = document.getElementById('returnBtn');
+  const hudTopLeft = document.querySelector('.hud-top-left');
+
+  function setActiveNav(id){
+    navItems.forEach(n=> n.classList.toggle('active', n.dataset.target === (id||'orbit')));
+  }
+
+  function closeAllPanels(){
+    Object.values(panels).forEach(p=> p.classList.remove('open'));
+  }
+
+  function dockTo(id){
+    if(transitioning) return;
+    transitioning = true;
+    dockedId = id;
+    controlsEnabled = false;
+    closeAllPanels();
+    setActiveNav(id);
+    returnBtn.classList.add('show');
+    hudTopLeft.classList.add('faded');
+
+    setTimeout(()=>{
+      panels[id].classList.add('open');
+      transitioning = false;
+    }, 550);
+  }
+
+  function returnToOrbit(){
+    if(transitioning) return;
+    dockedId = null;
+    closeAllPanels();
+    setActiveNav(null);
+    returnBtn.classList.remove('show');
+    hudTopLeft.classList.remove('faded');
+    controlsEnabled = true;
+    targetDistance = 360; targetPolar = 1.15;
+  }
+
+  returnBtn.addEventListener('click', returnToOrbit);
+
+  // clicking the dimmed backdrop (outside the panel surface) also returns to orbit
+  Object.values(panels).forEach(panelEl=>{
+    panelEl.addEventListener('click', e=>{
+      if(e.target === panelEl) returnToOrbit();
+    });
+  });
+
+  navItems.forEach(item=>{
+    item.addEventListener('click', ()=>{
+      const target = item.dataset.target;
+      if(target === 'orbit') returnToOrbit();
+      else dockTo(target);
+    });
+  });
+
+  /* ---------------- Resize ---------------- */
+  window.addEventListener('resize', ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    resizeFlareCanvas();
+  });
+
+  /* ---------------- Animation loop ---------------- */
+  const clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    const dt = Math.min(clock.getDelta(), 0.05);
+    const t = clock.elapsedTime;
+
+    // sun pulse
+    const pulse = 1 + Math.sin(t*1.2)*0.03;
+    glowSprite.scale.set(160*pulse,160*pulse,1);
+    sun.rotation.y += dt*0.05;
+
+    // planets orbit + spin
+    planets.forEach(p=>{
+      p.angle += p.speed * dt;
+      p.group.position.set(Math.cos(p.angle)*p.radius, 0, Math.sin(p.angle)*p.radius);
+      p.mesh.rotation.y += p.spinSpeed;
+    });
+
+    // moon orbiting about-planet
+    const aboutPos = aboutPlanet.group.position;
+    moon.position.set(
+      aboutPos.x + Math.cos(t*0.8)*20,
+      Math.sin(t*0.8)*3,
+      aboutPos.z + Math.sin(t*0.8)*20
+    );
+
+    // asteroid belt slow rotation
+    beltMesh.rotation.y += dt*0.01;
+
+    // starfield parallax + slow drift
+    starsFar.rotation.y += dt*0.002;
+    starsNear.rotation.y += dt*0.004;
+    if(!dockedId){
+      camera.position.x += mouseX*6*dt;
+      camera.position.y += -mouseY*4*dt;
+    }
+
+    // auto-rotate for coarse pointers / mobile
+    if(autoRotate && controlsEnabled && !dockedId){
+      targetAzimuth += dt*0.05;
+    }
+
+    if(dockedId){
+      // fly camera toward docked body (a planet, or the sun for 'core')
+      const target = dockedId === 'core'
+        ? { group:{ position:new THREE.Vector3(0,0,0) }, size:26 }
+        : planets.find(p=>p.id===dockedId);
+      const pos = target.group.position;
+      const desired = new THREE.Vector3(pos.x*0.55 + target.size*3, target.size*1.4, pos.z*0.55 + target.size*3);
+      camera.position.lerp(desired, 1 - Math.pow(0.001, dt));
+      camera.lookAt(pos.x, pos.y, pos.z);
+    } else {
+      updateCameraFromSpherical();
+    }
+
+    renderer.render(scene, camera);
+    drawLensFlare();
+  }
+  animate();
+
+})();
+</script>
+</body>
+</html>
